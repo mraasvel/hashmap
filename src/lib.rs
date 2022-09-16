@@ -104,6 +104,8 @@ where
     {
         let index = compute_hash(key, self.buckets.len());
         let bucket = &mut self.buckets[index];
+        // In a multimap you might want to use retain.
+        // Single instance of the key we can stop at the index and use swap_remove for constant removal.
         match bucket.iter().position(|(ekey, _)| ekey.borrow() == key) {
             Some(index) => Some(bucket.swap_remove(index).1),
             None => None,
@@ -139,6 +141,7 @@ mod tests {
         map.insert("key".to_string(), 42);
         assert_eq!(map.get("key"), Some(&42));
         assert_eq!(map.remove("key"), Some(42));
+        assert_eq!(map.get("key"), None);
         assert_eq!(map.remove("key"), None);
     }
 }

@@ -1,3 +1,9 @@
+# Todo
+- contains_key
+- len
+- impl Index, IndexMut
+- impl IntoIterator
+
 # Hashmap
 - take a hasher that returns some u64 index value
 - multiple keys can map to the same index (hash collision)
