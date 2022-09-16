@@ -37,8 +37,8 @@ impl<K, V> HashMap<K, V>
 where
     K: Hash + Eq,
 {
-	// The trait bounds for Q in this case allows for &str to be accepted when the key is a String.
-	// This means that the user doesn't have to own the referenced value.
+    // The trait bounds for Q in this case allows for &str to be accepted when the key is a String.
+    // This means that the user doesn't have to own the referenced value.
     pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
@@ -104,19 +104,19 @@ mod tests {
 
     #[test]
     fn test_insert() {
-		let key = "key";
+        let key = "key";
         let mut map = HashMap::new();
         map.insert(key, 42);
         assert_eq!(map.get("key"), Some(&42));
-		map.insert(key, 69);
+        map.insert(key, 69);
         assert_eq!(map.get("key"), Some(&69));
         assert_eq!(map.get("value"), None);
     }
 
-	#[test]
-	fn test_string() {
-		let mut map = HashMap::new();
-		map.insert("string".to_string(), 42);
-		assert_eq!(map.get("string"), Some(&42));
-	}
+    #[test]
+    fn test_string() {
+        let mut map = HashMap::new();
+        map.insert("string".to_string(), 42);
+        assert_eq!(map.get("string"), Some(&42));
+    }
 }
