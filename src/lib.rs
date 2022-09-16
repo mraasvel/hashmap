@@ -96,6 +96,19 @@ where
         // moving the new buckets is simply a copy of the pointers
         self.buckets = new_buckets;
     }
+
+    pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        let index = compute_hash(key, self.buckets.len());
+        let bucket = &mut self.buckets[index];
+        match bucket.iter().position(|(ekey, _)| ekey.borrow() == key) {
+            Some(index) => Some(bucket.swap_remove(index).1),
+            None => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -118,5 +131,14 @@ mod tests {
         let mut map = HashMap::new();
         map.insert("string".to_string(), 42);
         assert_eq!(map.get("string"), Some(&42));
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut map = HashMap::new();
+        map.insert("key".to_string(), 42);
+        assert_eq!(map.get("key"), Some(&42));
+        assert_eq!(map.remove("key"), Some(42));
+        assert_eq!(map.remove("key"), None);
     }
 }
