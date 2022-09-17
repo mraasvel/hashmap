@@ -1,6 +1,4 @@
 # Todo
-- contains_key
-- len
 - impl Index, IndexMut
 - impl IntoIterator
 

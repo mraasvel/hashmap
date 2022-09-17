@@ -7,6 +7,7 @@ use std::mem;
 const INITIAL_NBUCKETS: usize = 1;
 
 fn compute_hash<T: Hash + ?Sized>(value: &T, len: usize) -> usize {
+    assert_ne!(len, 0);
     let mut hasher = DefaultHasher::new();
     value.hash(&mut hasher);
     (hasher.finish() % len as u64) as usize
@@ -29,7 +30,15 @@ impl<K, V> HashMap<K, V> {
 
     fn should_resize(&self) -> bool {
         // empty or 3 quarters full (meaning load_factor == 0.75)
-        self.buckets.is_empty() || self.items > 3 * self.buckets.len() / 4
+        self.is_empty() || self.items > 3 * self.buckets.len() / 4
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn len(&self) -> usize {
+        self.items
     }
 }
 
@@ -44,6 +53,9 @@ where
         K: Borrow<Q>,
         Q: Hash + Eq,
     {
+        if self.is_empty() {
+            return None;
+        }
         let index = compute_hash(key, self.buckets.len());
         let bucket = &self.buckets[index];
         bucket
@@ -111,6 +123,14 @@ where
             None => None,
         }
     }
+
+    pub fn contains_key<Q: ?Sized>(&self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.get(key).is_some()
+    }
 }
 
 #[cfg(test)]
@@ -126,6 +146,7 @@ mod tests {
         map.insert(key, 69);
         assert_eq!(map.get("key"), Some(&69));
         assert_eq!(map.get("value"), None);
+        assert_eq!(map.len(), 1);
     }
 
     #[test]
@@ -143,5 +164,13 @@ mod tests {
         assert_eq!(map.remove("key"), Some(42));
         assert_eq!(map.get("key"), None);
         assert_eq!(map.remove("key"), None);
+    }
+
+    #[test]
+    fn test_contains_key() {
+        let mut map = HashMap::new();
+        assert_eq!(map.contains_key("key"), false);
+        map.insert("key".to_string(), Some(42));
+        assert_eq!(map.contains_key("key"), true);
     }
 }
