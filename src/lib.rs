@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::iter::FromIterator;
 use std::mem;
 use std::ops::Index;
 
@@ -198,6 +199,17 @@ where
     type Output = V;
     fn index(&self, index: &Q) -> &Self::Output {
         self.get(index).unwrap()
+    }
+}
+
+impl <K, V> FromIterator<(K, V)> for HashMap<K, V>
+where
+    K: Hash + Eq,
+{
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let mut map = HashMap::new();
+        iter.into_iter().for_each(|(key, value)| { map.insert(key, value); } );
+        map
     }
 }
 
@@ -405,5 +417,20 @@ mod tests {
         assert_eq!(map.get(&'b'), Some(&1));
         assert_eq!(map.get(&'c'), Some(&1));
         assert_eq!(map.get(&' '), Some(&2));
+    }
+
+    #[test]
+    fn test_from_iter() {
+        let map: HashMap<&str, i32> = [
+            ("a", 1),
+            ("b", 2),
+            ("c", 3)
+        ].iter().cloned().collect();
+        assert_eq!(map["a"], 1);
+        assert_eq!(map["b"], 2);
+        assert_eq!(map["c"], 3);
+        assert_eq!(map.len(), 3);
+        assert_eq!(map.get("d"), None);
+
     }
 }
