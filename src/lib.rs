@@ -245,15 +245,17 @@ impl<K, V> Iterator for IntoIter<K, V> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.bucket < self.hashmap.buckets.len()
-            && self.hashmap.buckets[self.bucket].is_empty()
-        {
-            self.bucket += 1;
+        loop {
+            match self.hashmap.buckets.get_mut(self.bucket) {
+                Some(bucket) => {
+                    match bucket.pop() {
+                        Some(x) => break Some(x),
+                        None => self.bucket += 1,
+                    }
+                }
+                None => break None,
+            }
         }
-        if self.bucket == self.hashmap.buckets.len() {
-            return None;
-        }
-        self.hashmap.buckets[self.bucket].pop()
     }
 }
 
@@ -431,6 +433,5 @@ mod tests {
         assert_eq!(map["c"], 3);
         assert_eq!(map.len(), 3);
         assert_eq!(map.get("d"), None);
-
     }
 }
