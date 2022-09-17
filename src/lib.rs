@@ -175,7 +175,7 @@ where
     }
 
     pub fn entry(&mut self, key: K) -> Entry<'_, K, V> {
-        if self.should_resize() {
+        if self.is_empty() {
             self.resize();
         }
         let bucket = compute_hash_unchecked(&key, self.buckets.len());

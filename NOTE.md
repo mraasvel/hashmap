@@ -1,5 +1,4 @@
 # Todo
-- entry API: tests, problem: how to handle resizing on inserts
 - collect support? impl FromIterator
 
 # Hashmap
