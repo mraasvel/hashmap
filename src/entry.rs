@@ -1,5 +1,3 @@
-use std::hash::Hash;
-
 use crate::HashMap;
 
 pub enum Entry<'a, K, V> {
@@ -8,17 +6,13 @@ pub enum Entry<'a, K, V> {
 }
 
 impl<'a, K, V> Entry<'a, K, V> {
-    pub fn or_insert(self, default: V) -> &'a mut V
-    where
-        K: Hash + Eq,
-    {
+    pub fn or_insert(self, default: V) -> &'a mut V {
         self.or_insert_with(|| default)
     }
 
     pub fn or_insert_with<F>(self, f: F) -> &'a mut V
     where
         F: FnOnce() -> V,
-        K: Hash + Eq,
     {
         match self {
             Entry::Occupied(e) => &mut e.map.buckets[e.bucket][e.index].1,
@@ -71,13 +65,7 @@ impl<'a, K, V> VacantEntry<'a, K, V> {
         VacantEntry { map, bucket, key }
     }
 
-    pub fn insert(self, value: V) -> &'a mut V
-    where
-        K: Hash + Eq,
-    {
-        if self.map.should_resize() {
-            self.map.resize();
-        }
+    pub fn insert(self, value: V) -> &'a mut V {
         self.map.items += 1;
         let bucket = &mut self.map.buckets[self.bucket];
         bucket.push((self.key, value));
