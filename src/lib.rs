@@ -6,8 +6,20 @@ use std::mem;
 // FIXME: make it bigger like 2^10
 const INITIAL_NBUCKETS: usize = 1;
 
-fn compute_hash<T: Hash + ?Sized>(value: &T, len: usize) -> usize {
-    assert_ne!(len, 0);
+#[inline]
+fn compute_hash<T: Hash + ?Sized>(value: &T, len: usize) -> Option<usize> {
+    match len {
+        0 => None,
+        len => {
+            let mut hasher = DefaultHasher::new();
+            value.hash(&mut hasher);
+            Some((hasher.finish() % len as u64) as usize)
+        }
+    }
+}
+
+#[inline]
+fn compute_hash_unchecked<T: Hash + ?Sized>(value: &T, len: usize) -> usize {
     let mut hasher = DefaultHasher::new();
     value.hash(&mut hasher);
     (hasher.finish() % len as u64) as usize
@@ -18,7 +30,7 @@ type Bucket<K, V> = Vec<(K, V)>;
 pub struct HashMap<K, V> {
     buckets: Vec<Bucket<K, V>>,
     items: usize,
-}
+}   
 
 impl<K, V> HashMap<K, V> {
     pub fn new() -> Self {
@@ -53,10 +65,7 @@ where
         K: Borrow<Q>,
         Q: Hash + Eq,
     {
-        if self.is_empty() {
-            return None;
-        }
-        let index = compute_hash(key, self.buckets.len());
+        let index = compute_hash(key, self.buckets.len())?;
         let bucket = &self.buckets[index];
         bucket
             .iter()
@@ -73,7 +82,7 @@ where
         }
 
         // find the bucket this key belongs to
-        let index = compute_hash(&key, self.buckets.len());
+        let index = compute_hash_unchecked(&key, self.buckets.len());
         let bucket = &mut self.buckets[index];
 
         // if present (linear search), replace the value and return it
@@ -100,7 +109,7 @@ where
         // this is the same as doing flat_map(|bucket| bucket.into_iter())
         for (key, value) in self.buckets.drain(..).flatten() {
             // recompute hash for new size
-            let index = compute_hash(&key, new_buckets.len());
+            let index = compute_hash_unchecked(&key, new_buckets.len());
             // because everything is moved the copies are relatively efficient
             new_buckets[index].push((key, value));
         }
@@ -114,7 +123,7 @@ where
         K: Borrow<Q>,
         Q: Hash + Eq,
     {
-        let index = compute_hash(key, self.buckets.len());
+        let index = compute_hash(key, self.buckets.len())?;
         let bucket = &mut self.buckets[index];
         // In a multimap you might want to use retain.
         // Single instance of the key we can stop at the index and use swap_remove for constant removal.
