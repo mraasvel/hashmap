@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::ops::Index;
 
 // FIXME: make it bigger like 2^10
 const INITIAL_NBUCKETS: usize = 1;
@@ -27,6 +28,7 @@ fn compute_hash_unchecked<T: Hash + ?Sized>(value: &T, len: usize) -> usize {
 
 type Bucket<K, V> = Vec<(K, V)>;
 
+#[derive(Default)]
 pub struct HashMap<K, V> {
     buckets: Vec<Bucket<K, V>>,
     items: usize,
@@ -73,6 +75,19 @@ where
             .map(|(_, value)| value)
     }
 
+    pub fn get_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<&mut V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        let index = compute_hash(key, self.buckets.len())?;
+        let bucket = &mut self.buckets[index];
+        bucket
+            .iter_mut()
+            .find(|(ekey, _)| ekey.borrow() == key)
+            .map(|(_, value)| value)
+    }
+
     /// Inserts value under key into the hashmap.
     /// Returns the old value of that key if it was present.
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
@@ -102,7 +117,7 @@ where
 
         // new vector with new size
         let mut new_buckets = Vec::with_capacity(target_size);
-        new_buckets.resize_with(target_size, || Vec::new());
+        new_buckets.resize_with(target_size, Vec::new);
 
         // drain removes the range from buckets
         // flatten flattens the nested vector structure so it yields (K, V) pairs instead of Bucket
@@ -128,7 +143,10 @@ where
         // In a multimap you might want to use retain.
         // Single instance of the key we can stop at the index and use swap_remove for constant removal.
         match bucket.iter().position(|(ekey, _)| ekey.borrow() == key) {
-            Some(index) => Some(bucket.swap_remove(index).1),
+            Some(index) => {
+                self.items -= 1;
+                Some(bucket.swap_remove(index).1)
+            }
             None => None,
         }
     }
@@ -142,6 +160,52 @@ where
     }
 }
 
+impl <K, V, Q> Index<&Q> for HashMap<K, V>
+where
+    K: Borrow<Q> + Hash + Eq,
+    Q: ?Sized + Hash + Eq,
+{
+    type Output = V;
+    fn index(&self, index: &Q) -> &Self::Output {
+        self.get(index).unwrap()
+    }
+}
+
+impl <K, V> IntoIterator for HashMap<K, V> {
+    type IntoIter = IntoIter<K, V>;
+    type Item = (K, V);
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter::new(self)
+    }
+}
+
+pub struct IntoIter<K, V> {
+    hashmap: HashMap<K, V>,
+    bucket: usize,
+}
+
+impl <K, V> IntoIter<K, V> {
+    fn new(hashmap: HashMap<K, V>) -> Self {
+        IntoIter {
+            hashmap,
+            bucket: 0,
+        }
+    }
+}
+
+impl <K, V> Iterator for IntoIter<K, V> {
+    type Item = (K, V);
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.bucket < self.hashmap.buckets.len() && self.hashmap.buckets[self.bucket].is_empty() {
+            self.bucket += 1;
+        }
+        if self.bucket == self.hashmap.buckets.len() {
+            return None;
+        }
+        self.hashmap.buckets[self.bucket].pop()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,12 +214,14 @@ mod tests {
     fn test_insert() {
         let key = "key";
         let mut map = HashMap::new();
+        assert_eq!(map.len(), 0);
         map.insert(key, 42);
+        assert_eq!(map.len(), 1);
         assert_eq!(map.get("key"), Some(&42));
         map.insert(key, 69);
+        assert_eq!(map.len(), 1);
         assert_eq!(map.get("key"), Some(&69));
         assert_eq!(map.get("value"), None);
-        assert_eq!(map.len(), 1);
     }
 
     #[test]
@@ -170,7 +236,9 @@ mod tests {
         let mut map = HashMap::new();
         map.insert("key".to_string(), 42);
         assert_eq!(map.get("key"), Some(&42));
+        assert_eq!(map.len(), 1);
         assert_eq!(map.remove("key"), Some(42));
+        assert_eq!(map.len(), 0);
         assert_eq!(map.get("key"), None);
         assert_eq!(map.remove("key"), None);
     }
@@ -181,5 +249,29 @@ mod tests {
         assert_eq!(map.contains_key("key"), false);
         map.insert("key".to_string(), Some(42));
         assert_eq!(map.contains_key("key"), true);
+    }
+
+    #[test]
+    fn test_index() {
+        let mut map = HashMap::new();
+        map.insert("key", 42);
+        assert_eq!(map["key"], 42);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_index() {
+        let map: HashMap<String, i32> = HashMap::new();
+        let _ = map["key"];
+    }
+
+    #[test]
+    fn test_into_iter() {
+        let mut map = HashMap::new();
+        map.insert("key".to_string(), 42);
+        for (key, value) in map.into_iter() {
+            assert_eq!(key, "key");
+            assert_eq!(value, 42);
+        }
     }
 }

@@ -1,6 +1,6 @@
 # Todo
-- impl Index, IndexMut
-- impl IntoIterator
+- impl IntoIterator (self, &self (iter()), &mut self (into_iter()))
+- clean up implementation block
 
 # Hashmap
 - take a hasher that returns some u64 index value
@@ -24,4 +24,11 @@ This is done to prevent different hashmaps from having the same hashes which can
 ```Rust
 // if K == String, the user has to own the key and provide a &String type even though &str would be good enough.
 fn get(key: &K) -> Option<&V>;
+
+// Now k.borrow() results in a &Q, so if K is a String it can give a &str type.
+fn get<Q: ?Sized>(key: &Q) -> Option<&V>
+where
+	K: Borrow<Q>,
+	Q: Hash + Eq,
+{}
 ```
