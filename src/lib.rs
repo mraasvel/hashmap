@@ -8,8 +8,7 @@ use std::ops::Index;
 mod entry;
 pub use entry::{Entry, OccupiedEntry, VacantEntry};
 
-// FIXME: make it bigger like 2^10
-const INITIAL_NBUCKETS: usize = 1;
+const INITIAL_NBUCKETS: usize = 1024;
 
 #[inline]
 fn compute_hash<T: Hash + ?Sized>(value: &T, len: usize) -> Option<usize> {

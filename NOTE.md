@@ -1,6 +1,3 @@
-# Todo
-- collect support? impl FromIterator
-
 # Hashmap
 - take a hasher that returns some u64 index value
 - multiple keys can map to the same index (hash collision)
