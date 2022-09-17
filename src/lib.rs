@@ -54,6 +54,10 @@ impl<K, V> HashMap<K, V> {
     pub fn len(&self) -> usize {
         self.items
     }
+
+    pub fn iter<'a>(&'a self) -> Iter<'a, K, V> {
+        IntoIterator::into_iter(self)
+    }
 }
 
 impl<K, V> HashMap<K, V>
@@ -171,13 +175,13 @@ where
     }
 }
 
-impl <K, V> IntoIterator for HashMap<K, V> {
-    type IntoIter = IntoIter<K, V>;
-    type Item = (K, V);
-    fn into_iter(self) -> Self::IntoIter {
-        IntoIter::new(self)
-    }
-}
+/**
+ * Implement IntoIterator
+ */
+
+/**
+ * IntoIter
+ */
 
 pub struct IntoIter<K, V> {
     hashmap: HashMap<K, V>,
@@ -193,6 +197,14 @@ impl <K, V> IntoIter<K, V> {
     }
 }
 
+impl <K, V> IntoIterator for HashMap<K, V> {
+    type IntoIter = IntoIter<K, V>;
+    type Item = (K, V);
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter::new(self)
+    }
+}
+
 impl <K, V> Iterator for IntoIter<K, V> {
     type Item = (K, V);
     fn next(&mut self) -> Option<Self::Item> {
@@ -205,6 +217,52 @@ impl <K, V> Iterator for IntoIter<K, V> {
         self.hashmap.buckets[self.bucket].pop()
     }
 }
+
+/**
+ * Iter
+ */
+
+pub struct Iter<'hashmap, K, V> {
+    hashmap: &'hashmap HashMap<K, V>,
+    bucket: usize,
+    index: usize,
+}
+
+impl <'hashmap, K, V> Iter<'hashmap, K, V> {
+    fn new(hashmap: &'hashmap HashMap<K, V>) -> Self {
+        Iter {
+            hashmap,
+            bucket: 0,
+            index: 0,
+        }
+    }
+}
+
+impl <'hashmap, K, V> IntoIterator for &'hashmap HashMap<K, V> {
+    type IntoIter = Iter<'hashmap, K, V>;
+    type Item = &'hashmap (K, V);
+    fn into_iter(self) -> Self::IntoIter {
+        Iter::new(self)
+    }
+}
+
+impl <'hashmap, K, V> Iterator for Iter<'hashmap, K, V> {
+    type Item = &'hashmap (K, V);
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.bucket < self.hashmap.buckets.len() {
+            let bucket = &self.hashmap.buckets[self.bucket];
+            if self.index >= bucket.len() {
+                self.index = 0;
+            } else {
+                self.index += 1;
+                return Some(&bucket[self.index - 1]);
+            }
+            self.bucket += 1;
+        }
+        None
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -268,10 +326,36 @@ mod tests {
     #[test]
     fn test_into_iter() {
         let mut map = HashMap::new();
-        map.insert("key".to_string(), 42);
-        for (key, value) in map.into_iter() {
-            assert_eq!(key, "key");
-            assert_eq!(value, 42);
+
+        let v1 = vec![
+            ('a', 42),
+            ('b', 11),
+            ('c', 422),
+            ('d', 3),
+        ];
+        for (key, value) in v1.iter() {
+            map.insert(key.clone(), value.clone());
         }
+        let mut v2: Vec<_> = map.into_iter().collect();
+        v2.sort();
+        assert_eq!(v1, v2);
+    }
+
+    #[test]
+    fn test_iter() {
+        let mut map = HashMap::new();
+
+        let v1 = vec![
+            ('a', 42),
+            ('b', 11),
+            ('c', 422),
+            ('d', 3),
+        ];
+        for (key, value) in v1.iter() {
+            map.insert(key.clone(), value.clone());
+        }
+        let mut v2: Vec<_> = map.iter().cloned().collect();
+        v2.sort();
+        assert_eq!(v1, v2);
     }
 }

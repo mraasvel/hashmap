@@ -1,5 +1,6 @@
 # Todo
 - impl IntoIterator (self, &self (iter()), &mut self (into_iter()))
+- collect support? FromIterator
 - clean up implementation block
 
 # Hashmap
