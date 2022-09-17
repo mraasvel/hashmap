@@ -4,6 +4,9 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 use std::ops::Index;
 
+mod entry;
+pub use entry::{Entry, OccupiedEntry, VacantEntry};
+
 // FIXME: make it bigger like 2^10
 const INITIAL_NBUCKETS: usize = 1;
 
@@ -32,7 +35,7 @@ type Bucket<K, V> = Vec<(K, V)>;
 pub struct HashMap<K, V> {
     buckets: Vec<Bucket<K, V>>,
     items: usize,
-}   
+}
 
 impl<K, V> HashMap<K, V> {
     pub fn new() -> Self {
@@ -40,6 +43,14 @@ impl<K, V> HashMap<K, V> {
             buckets: Vec::new(),
             items: 0,
         }
+    }
+
+    fn bucket(&self, index: usize) -> &Bucket<K, V> {
+        &self.buckets[index]
+    }
+
+    fn bucket_mut(&mut self, index: usize) -> &mut Bucket<K, V> {
+        &mut self.buckets[index]
     }
 
     fn should_resize(&self) -> bool {
@@ -72,7 +83,7 @@ where
         Q: Hash + Eq,
     {
         let index = compute_hash(key, self.buckets.len())?;
-        let bucket = &self.buckets[index];
+        let bucket = self.bucket(index);
         bucket
             .iter()
             .find(|(ekey, _)| ekey.borrow() == key)
@@ -85,7 +96,7 @@ where
         Q: Hash + Eq,
     {
         let index = compute_hash(key, self.buckets.len())?;
-        let bucket = &mut self.buckets[index];
+        let bucket = self.bucket_mut(index);
         bucket
             .iter_mut()
             .find(|(ekey, _)| ekey.borrow() == key)
@@ -102,7 +113,7 @@ where
 
         // find the bucket this key belongs to
         let index = compute_hash_unchecked(&key, self.buckets.len());
-        let bucket = &mut self.buckets[index];
+        let bucket = self.bucket_mut(index);
 
         // if present (linear search), replace the value and return it
         if let Some((_, evalue)) = bucket.iter_mut().find(|(ekey, _)| ekey == &key) {
@@ -162,9 +173,24 @@ where
     {
         self.get(key).is_some()
     }
+
+    pub fn entry(&mut self, key: K) -> Entry<'_, K, V> {
+        if self.should_resize() {
+            self.resize();
+        }
+        let bucket = compute_hash_unchecked(&key, self.buckets.len());
+        match self
+            .bucket(bucket)
+            .iter()
+            .position(|(ekey, _)| ekey == &key)
+        {
+            Some(index) => Entry::Occupied(OccupiedEntry::new(self, bucket, index)),
+            None => Entry::Vacant(VacantEntry::new(self, bucket, key)),
+        }
+    }
 }
 
-impl <K, V, Q> Index<&Q> for HashMap<K, V>
+impl<K, V, Q> Index<&Q> for HashMap<K, V>
 where
     K: Borrow<Q> + Hash + Eq,
     Q: ?Sized + Hash + Eq,
@@ -188,27 +214,28 @@ pub struct IntoIter<K, V> {
     bucket: usize,
 }
 
-impl <K, V> IntoIter<K, V> {
+impl<K, V> IntoIter<K, V> {
     fn new(hashmap: HashMap<K, V>) -> Self {
-        IntoIter {
-            hashmap,
-            bucket: 0,
-        }
+        IntoIter { hashmap, bucket: 0 }
     }
 }
 
-impl <K, V> IntoIterator for HashMap<K, V> {
+impl<K, V> IntoIterator for HashMap<K, V> {
     type IntoIter = IntoIter<K, V>;
     type Item = (K, V);
+
     fn into_iter(self) -> Self::IntoIter {
         IntoIter::new(self)
     }
 }
 
-impl <K, V> Iterator for IntoIter<K, V> {
+impl<K, V> Iterator for IntoIter<K, V> {
     type Item = (K, V);
+
     fn next(&mut self) -> Option<Self::Item> {
-        while self.bucket < self.hashmap.buckets.len() && self.hashmap.buckets[self.bucket].is_empty() {
+        while self.bucket < self.hashmap.buckets.len()
+            && self.hashmap.buckets[self.bucket].is_empty()
+        {
             self.bucket += 1;
         }
         if self.bucket == self.hashmap.buckets.len() {
@@ -228,7 +255,7 @@ pub struct Iter<'hashmap, K, V> {
     index: usize,
 }
 
-impl <'hashmap, K, V> Iter<'hashmap, K, V> {
+impl<'hashmap, K, V> Iter<'hashmap, K, V> {
     fn new(hashmap: &'hashmap HashMap<K, V>) -> Self {
         Iter {
             hashmap,
@@ -238,31 +265,49 @@ impl <'hashmap, K, V> Iter<'hashmap, K, V> {
     }
 }
 
-impl <'hashmap, K, V> IntoIterator for &'hashmap HashMap<K, V> {
+impl<'hashmap, K, V> IntoIterator for &'hashmap HashMap<K, V> {
     type IntoIter = Iter<'hashmap, K, V>;
-    type Item = &'hashmap (K, V);
+    type Item = (&'hashmap K, &'hashmap V);
+
     fn into_iter(self) -> Self::IntoIter {
         Iter::new(self)
     }
 }
 
-impl <'hashmap, K, V> Iterator for Iter<'hashmap, K, V> {
-    type Item = &'hashmap (K, V);
+impl<'hashmap, K, V> Iterator for Iter<'hashmap, K, V> {
+    type Item = (&'hashmap K, &'hashmap V);
+
     fn next(&mut self) -> Option<Self::Item> {
-        while self.bucket < self.hashmap.buckets.len() {
-            let bucket = &self.hashmap.buckets[self.bucket];
-            if self.index >= bucket.len() {
-                self.index = 0;
-            } else {
-                self.index += 1;
-                return Some(&bucket[self.index - 1]);
-            }
-            self.bucket += 1;
+        // need a loop, pattern matching method
+        loop {
+            match self.hashmap.buckets.get(self.bucket) {
+                Some(bucket) => match bucket.get(self.index) {
+                    Some(&(ref key, ref value)) => {
+                        self.index += 1;
+                        break Some((key, value));
+                    }
+                    None => {
+                        self.bucket += 1;
+                        self.index = 0;
+                    }
+                },
+                None => break None,
+            };
         }
-        None
+        // imperative
+        // while self.bucket < self.hashmap.buckets.len() {
+        //     let bucket = &self.hashmap.buckets[self.bucket];
+        //     if self.index < bucket.len() {
+        //         self.index += 1;
+        //         let pair = &bucket[self.index - 1];
+        //         return Some((&pair.0, &pair.1));
+        //     }
+        //     self.index = 0;
+        //     self.bucket += 1;
+        // }
+        // None
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -327,12 +372,7 @@ mod tests {
     fn test_into_iter() {
         let mut map = HashMap::new();
 
-        let v1 = vec![
-            ('a', 42),
-            ('b', 11),
-            ('c', 422),
-            ('d', 3),
-        ];
+        let v1 = vec![('a', 42), ('b', 11), ('c', 422), ('d', 3)];
         for (key, value) in v1.iter() {
             map.insert(key.clone(), value.clone());
         }
@@ -345,17 +385,25 @@ mod tests {
     fn test_iter() {
         let mut map = HashMap::new();
 
-        let v1 = vec![
-            ('a', 42),
-            ('b', 11),
-            ('c', 422),
-            ('d', 3),
-        ];
+        let v1 = vec![('a', 42), ('b', 11), ('c', 422), ('d', 3)];
         for (key, value) in v1.iter() {
             map.insert(key.clone(), value.clone());
         }
-        let mut v2: Vec<_> = map.iter().cloned().collect();
+        let mut v2: Vec<_> = map.iter().map(|(x, y)| (x.clone(), y.clone())).collect();
         v2.sort();
         assert_eq!(v1, v2);
+    }
+
+    #[test]
+    fn test_entry() {
+        let mut map = HashMap::new();
+        let s = "abca  a";
+        s.chars().for_each(|ch| {
+            map.entry(ch).and_modify(|x| *x += 1).or_insert(1);
+        });
+        assert_eq!(map.get(&'a'), Some(&3));
+        assert_eq!(map.get(&'b'), Some(&1));
+        assert_eq!(map.get(&'c'), Some(&1));
+        assert_eq!(map.get(&' '), Some(&2));
     }
 }

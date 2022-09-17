@@ -1,7 +1,6 @@
 # Todo
-- impl IntoIterator (self, &self (iter()), &mut self (into_iter()))
-- collect support? FromIterator
-- clean up implementation block
+- entry API: tests, problem: how to handle resizing on inserts
+- collect support? impl FromIterator
 
 # Hashmap
 - take a hasher that returns some u64 index value
@@ -22,11 +21,15 @@ Usually you would have a buildhasher with a particular seed from which the hash 
 This is done to prevent different hashmaps from having the same hashes which can be abused in attacks.
 
 - Least strict trait bounds
+`Borrow` trait is useful when providing a different representation of a type for different usecases.
+Example: `String` is a different representation for `str` when it is owned.
+
 ```Rust
 // if K == String, the user has to own the key and provide a &String type even though &str would be good enough.
 fn get(key: &K) -> Option<&V>;
 
 // Now k.borrow() results in a &Q, so if K is a String it can give a &str type.
+// We say with this that a reference to Q is semantically the same as a reference to K
 fn get<Q: ?Sized>(key: &Q) -> Option<&V>
 where
 	K: Borrow<Q>,
